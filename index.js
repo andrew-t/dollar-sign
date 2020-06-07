@@ -42,10 +42,14 @@ function parseArgs(args) {
 
 function dieWithUsage() {
 	console.error(`
+Parses stdin as HTML and returns the inner text of elements matching a given CSS selector.
+
 Usage:
-  curl [URL] | dollar-sign [OPTIONS] [SELECTOR]
+
+  dollar-sign [OPTIONS] [SELECTOR]
 
 Examples:
+
   curl http://example.com | dollar-sign ".main li"
   dollar-sign -t ".main li" < index.html
   cat index.html | dollar-sign -a data-value ".main li"
