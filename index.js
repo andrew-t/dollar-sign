@@ -41,21 +41,23 @@ function parseArgs(args) {
 }
 
 function dieWithUsage() {
-	console.error('');
-	console.error('Usage:');
-	console.error('  curl [URL] | dollar-sign [OPTIONS] [SELECTOR]');
-	console.error('  curl http://example.com | dollar-sign ".main li"');
-	console.error('  curl http://example.com | dollar-sign -t ".main li"');
-	console.error('  curl http://example.com | dollar-sign -a data-value ".main li"');
-	console.error('');
-	console.error('Allowed options:');
-	console.error('');
-	console.error('  -a ATTR             Instead of the inner text,');
-	console.error('  --attr ATTR         return the value of the attribute ATTR.');
-	console.error('  --attribute ATTR    ');
-	console.error('');
-	console.error('  -t                  Instead of the inner text,');
-	console.error('  --tag               return the HTML tag.');
-	console.error('');
+	console.error(`
+Usage:
+  curl [URL] | dollar-sign [OPTIONS] [SELECTOR]
+
+Examples:
+  curl http://example.com | dollar-sign ".main li"
+  dollar-sign -t ".main li" < index.html
+  cat index.html | dollar-sign -a data-value ".main li"
+
+Allowed options:
+
+  -a ATTR             Instead of the inner text,
+  --attr ATTR         return the value of the attribute ATTR.
+  --attribute ATTR
+
+  -t                  Instead of the inner text,
+  --tag               return the HTML tag.
+`);
 	process.exit(1);
 }
