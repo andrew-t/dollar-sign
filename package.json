@@ -1,6 +1,6 @@
 {
   "name": "@andrewtaylor/dollar-sign",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Find nodes matching a CSS selector in an HTML stream",
   "main": "index.js",
   "scripts": {},
