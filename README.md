@@ -17,7 +17,7 @@ I built it because I was doing [a crossword](https://www.theguardian.com/crosswo
 With this tool, I can do this:
 
 ``` sh
-curl https://www.britannica.com/topic/list-of-countries-1993160 \
+curl -s https://www.britannica.com/topic/list-of-countries-1993160 \
 	| dollar-sign ".topic-list li" \
 	| egrep -i "^[a-z]{3}i$";
 ```
@@ -31,13 +31,13 @@ I expect this tool has other uses.
 If it isn't the inner text you want, you can pick out attributes:
 
 ```sh
-curl http://example.com \
+curl -s http://example.com \
 	| dollar-sign -a class "li > a"
 ```
 
 Or you can pick out the tag name:
 
 ```sh
-curl http://example.com \
+curl -s http://example.com \
 	| dollar-sign -t ".some-class"
 ```
