@@ -1,12 +1,18 @@
 {
   "name": "dollar-sign",
   "version": "1.0.0",
-  "description": "",
+  "description": "Find nodes matching a CSS selector in an HTML stream",
   "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "scripts": {},
+  "files": [ "index.js", "README.md" ],
+  "bin": {
+    "dollar-sign": "index.js"
   },
-  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andrew-t/dollar-sign.git"
+  },
+  "author": "Andrew Taylor <andrew@andrewt.net>",
   "license": "ISC",
   "dependencies": {
     "cheerio": "^1.0.0-rc.3"
