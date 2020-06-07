@@ -1,5 +1,15 @@
 # `dollar-sign`
 
+## Installation
+
+This is intended to be used as a command-line tool, so would usually be installed globally:
+
+```sh
+npm install -g @andrewtaylor/dollar-sign
+```
+
+## Usage and aims
+
 `dollar-sign` takes an input stream, parses it as HTML, then returns the inner text of any elements that match a supplied selector.
 
 I built it because I was doing a crossword and the clue "Mark fighter for country (4)" came up. The answer presumably was something that means 'mark', followed by a fighter, which makes a four-letter country, and since I already had 12 across, I knew it ended in "I". I'd found [a list of countries](curl https://www.britannica.com/topic/list-of-countries-1993160) but it wasn't sortable by length or last letter so it didn't help much.
