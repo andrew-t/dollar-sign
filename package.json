@@ -1,12 +1,21 @@
 {
   "name": "@andrewtaylor/dollar-sign",
-  "version": "1.0.2",
+  "version": "2.0.0",
   "description": "Find nodes matching a CSS selector in an HTML stream",
   "main": "index.js",
-  "scripts": {},
-  "files": [ "index.js", "README.md" ],
+  "scripts": {
+    "build": "tsc -b && chmod +x dist/index.js",
+    "start": "npm run build && ./dist/index.js"
+  },
+  "files": [
+    "dist/index.js",
+    "dist/die.js",
+    "dist/args.js",
+    "dist/types.js",
+    "README.md"
+  ],
   "bin": {
-    "dollar-sign": "index.js"
+    "dollar-sign": "dist/index.js"
   },
   "repository": {
     "type": "git",
@@ -16,5 +25,9 @@
   "license": "ISC",
   "dependencies": {
     "cheerio": "^1.0.0-rc.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "typescript": "^5.5.3"
   }
 }
