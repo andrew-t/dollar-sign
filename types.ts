@@ -39,5 +39,5 @@ export interface MatchingElement {
 }
 
 export interface MatchChildren {
-	[id: string]: MatchingElement[];
+	[id: string]: Array<MatchingElement | string>;
 }

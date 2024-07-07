@@ -8,6 +8,9 @@ const options = parseArgs(process.argv.slice(2));
 
 if (options.verbose || options.dryRun) console.error(JSON.stringify(options, null, 2));
 
+// TODO: support using a folder of html pages instead of a web server
+// ofc you can do it with python -m http.server for now
+
 if (!options.dryRun) getStartPage(options.url)
 	.then(html => getChildren(options.children, html, options.url))
 	.then(json => console.log(options.pretty
@@ -56,15 +59,20 @@ async function getChildren(children: PageChildren, html: Cheerio<AnyNode>, url: 
 	return await asyncMapObj(children,
 		({ selector, values, children: grandChildren, follow }) =>
 			asyncMap(html.find(selector).toArray(), 
-				async el => ({
-				values: values.map(val => getText(el, val)),
-				children: grandChildren
-					? await getChildren(grandChildren, $(el), url)
-					: null,
-				follow: follow
-					? await getFollow(follow, $(el).attr("href"), url)
-					: null,
-			})));
+				async el => {
+					// if we don't specify anything in particular to do with this node, just return its text content without all the extra JSON cruft
+					if (!grandChildren && !follow && !values.length)
+						return getText(el, { type: "text" });
+					return {
+						values: values.map(val => getText(el, val)),
+						children: grandChildren
+							? await getChildren(grandChildren, $(el), url)
+							: null,
+						follow: follow
+							? await getFollow(follow, $(el).attr("href"), url)
+							: null,
+				};
+			}));
 }
 
 async function getFollow(

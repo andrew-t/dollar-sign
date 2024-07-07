@@ -51,6 +51,14 @@ export default function parseArgs(args: string[]): PageOptions {
 				currentFollow!.follow[currentName] = currentNode as SubPage;
 			} else root.children[currentName] = currentNode as SubPage;
 		}
+		function nextNode() {
+			saveCurrentNode();
+			currentNode = { values: [] };
+			currentParent = null;
+			currentFollow = null;
+			currentName = null;
+			doneAnything = false;
+		}
 		while (args.length) {
 			const arg = args.shift();
 			// console.log(JSON.stringify({ currentNode, currentName, currentParent, doneAnything, arg }, null, 2));
@@ -69,21 +77,19 @@ export default function parseArgs(args: string[]): PageOptions {
 					break;
 				case '-n':
 				case '--name':
-					if (currentName) throw new Error("Two names");
+					if (currentName) nextNode();
 					currentName = args.shift();
 					if (!currentName) throw new Error("No name");
-					// if (nodes[currentName]) dieWithUsage();
 					if (usedNames.has(currentName!)) throw new Error("Duplicate name");
 					usedNames.add(currentName!);
-					// nodes[currentName] = currentNode;
 					doneAnything = true;
 					break;
-				case '-T':
+				case '-t':
 				case '--text':
 					currentNode.values.push({ type: 'text' });
 					doneAnything = true;
 					break;
-				case '-t':
+				case '-T':
 				case '--tag':
 					currentNode.values.push({ type: 'tag' });
 					doneAnything = true;
@@ -98,9 +104,7 @@ export default function parseArgs(args: string[]): PageOptions {
 					break;
 				case '-p':
 				case '--parent': {
-					if (currentParent) throw new Error("Duplicate parent");
-					if (currentFollow) throw new Error("Follow and parent");
-					// currentParent = nodes[args.shift()];
+					if (currentParent || currentFollow) nextNode();
 					const id = args.shift()!;
 					if (!id) throw new Error("No parent");
 					currentParent = getNode(id!);
@@ -109,9 +113,7 @@ export default function parseArgs(args: string[]): PageOptions {
 				}
 				case '-f':
 				case '--follow': {
-					if (currentFollow) throw new Error("Duplicate follow");
-					if (currentParent) throw new Error("Parent and follow");
-					// currentFollow = nodes[args.shift()];
+					if (currentParent || currentFollow) nextNode();
 					const id = args.shift()!;
 					if (!id) throw new Error("No follow");
 					currentFollow = getNode(id!) as SubPage;
@@ -121,35 +123,30 @@ export default function parseArgs(args: string[]): PageOptions {
 				case '--':
 				case '--next':
 					if (!doneAnything) throw new Error("Redundant next");
-					saveCurrentNode();
-					currentNode = { values: [] };
-					currentParent = null;
-					currentFollow = null;
-					currentName = null;
-					doneAnything = false;
+					nextNode();
 					break;
 				default:
-					if (currentNode.selector) throw new Error("Duplicate selector");
+					if (currentNode.selector) nextNode();
 					doneAnything = true;
 					currentNode.selector = arg;
 			}
 			if (!args.length && doneAnything) saveCurrentNode();
 		}
-		function *allNodes(node?: SubPage): Generator<SubPage> {
-			if (!node) {
-				for (const id in root.children) yield *allNodes(root.children[id]);
-				return;
-			}
-			yield node;
-			if (node.children) for (const id in node.children)
-				yield *allNodes(node.children[id]);
-			if (node.follow) for (const id in node.follow)
-				yield *allNodes(node.follow[id]);
-		}
-		for (const node of allNodes()) {
-			if (empty(node.children) && empty(node.follow) && !node.values.length)
-				node.values.push({ type: "text" });
-		}
+		// function *allNodes(node?: SubPage): Generator<SubPage> {
+		// 	if (!node) {
+		// 		for (const id in root.children) yield *allNodes(root.children[id]);
+		// 		return;
+		// 	}
+		// 	yield node;
+		// 	if (node.children) for (const id in node.children)
+		// 		yield *allNodes(node.children[id]);
+		// 	if (node.follow) for (const id in node.follow)
+		// 		yield *allNodes(node.follow[id]);
+		// }
+		// for (const node of allNodes()) {
+		// 	if (empty(node.children) && empty(node.follow) && !node.values.length)
+		// 		node.values.push({ type: "text" });
+		// }
 		return root;
 	} catch (e) {
 		dieWithUsage(e as Error);
