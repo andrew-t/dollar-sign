@@ -1,28 +1,43 @@
+// config
+
+export interface PageOptions {
+	url: string | null;
+	verbose?: boolean;
+	dryRun?: boolean;
+	pretty?: boolean;
+	children: PageChildren;
+}
+
 export interface PageChildren {
 	[id: string]: SubPage;
 }
 
-export interface PageOptions {
-	html?: string | null;
-	url: string | null;
-	children: PageChildren;
+export interface SubPage {
+	selector: string;
+	follow?: PageChildren | null;
+	values: ElementValue[];
+	children?: PageChildren | null;
 }
 
 export type ElementValue = {
-	type: "text" | "tag";
+	type: "text" | "html" | "tag";
 	attr?: undefined | null;
 } | {
 	type: "attr";
 	attr: string;
 };
 
-export interface SubPage {
-	selector: string;
-	follow?: PageChildren | null;
-	value: ElementValue;
+export interface MatchingPage {
+	url: string | null,
+	children: MatchChildren;
 }
 
-export interface Result {
-	url: string | null,
-	values: { [id: string]: Array<Result | string | null> };
+export interface MatchingElement {
+	values: string[];
+	children: MatchChildren | null;
+	follow: MatchingPage | null;
+}
+
+export interface MatchChildren {
+	[id: string]: MatchingElement[];
 }

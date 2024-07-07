@@ -1,5 +1,5 @@
 import dieWithUsage from "./die";
-import { PageOptions, SubPage, PageChildren } from "./types";
+import { PageOptions, SubPage, PageChildren, ElementValue } from "./types";
 
 // TODO: if a node has follows and doesn't specify a 'value' prop, assume '-a href' rather than '--text'
 
@@ -10,49 +10,63 @@ export default function parseArgs(args: string[]): PageOptions {
 	if (args.length < 1) dieWithUsage();
 	try {
 		const root: PageOptions = {
-			html: null,
-			url: args[0].includes('://') ? args.shift()! : "stdio",
+			url: args[0].includes('://') ? args.shift()! : null,
 			children: {}
 		};
 		// const nodes: { [id: string]: PageChildren } = { root: root.children };
 		const usedNames = new Set<string>(["root"]);
-		function getNode(id: string): PageChildren;
-		function getNode(id: string, parent: PageChildren): PageChildren | null;
-		function getNode(id: string, parent = root.children) {
+		function getNode(id: string): PageOptions | SubPage;
+		function getNode(id: string, parent: PageOptions | SubPage): PageOptions | SubPage | null;
+		function getNode(id: string, parent: PageOptions | SubPage = root) {
 			if (id == "root") return parent;
-			if (id in parent) {
-				const next = parent[id];
-				if (!next.follow) next.follow = {};
-				return next.follow;
-			}
-			if (parent == root.children) throw new Error(`Node ${id} not found`);
-			for (const i in parent) {
-				const next = parent[i].follow;
-				if (!next) continue;
-				const x = getNode(id, next)?.follow;
+			if (parent.children && id in parent.children) return parent.children[id];
+			if ("follow" in parent && parent.follow && id in parent.follow) return parent.follow[id];
+			for (const i in parent.children) {
+				const x = getNode(id, parent.children[i]);
 				if (x) return x;
 			}
+			if ("follow" in parent && parent.follow) for (const i in parent.follow) {
+				const x = getNode(id, parent.follow[i]);
+				if (x) return x;
+			}
+			if (parent == root) throw new Error(`Node ${id} not found`);
 			return null;
 		}
-		let currentNode: Partial<SubPage> = {};
+		let currentNode: Partial<SubPage> & { values: ElementValue[] } = { values: [] };
 		let currentName: string | null | undefined = null;
-		let currentParent: PageChildren | null = null;
+		let currentParent: PageOptions | SubPage | null = null;
+		let currentFollow: SubPage | null = null;
 		let doneAnything = false;
 		function saveCurrentNode() {
 			if (!currentNode.selector) throw new Error("No selector");
-			if (!currentNode.value) currentNode.value = { type: 'text' };
+			// if (!currentNode.values) currentNode.values = [{ type: 'text' }];
 			if (!currentName) currentName = currentNode.selector!;
 			// nodes[currentName!] = currentNode;
 			usedNames.add(currentName);
 			if (currentParent) {
-				if (!currentParent) currentParent = {};
-				currentParent[currentName] = currentNode as SubPage;
+				if (!currentParent!.children) currentParent!.children = {};
+				currentParent!.children[currentName] = currentNode as SubPage;
+			} else if (currentFollow) {
+				if (!currentFollow!.follow) currentFollow!.follow = {};
+				currentFollow!.follow[currentName] = currentNode as SubPage;
 			} else root.children[currentName] = currentNode as SubPage;
 		}
 		while (args.length) {
 			const arg = args.shift();
 			// console.log(JSON.stringify({ currentNode, currentName, currentParent, doneAnything, arg }, null, 2));
 			switch (arg) {
+				case '-v':
+				case '--verbose':
+					root.verbose = true;
+					break;
+				case '-d':
+				case '--dry-run':
+					root.dryRun = true;
+					break;
+				case '-P':
+				case '--pretty':
+					root.pretty = true;
+					break;
 				case '-n':
 				case '--name':
 					if (currentName) throw new Error("Two names");
@@ -64,41 +78,53 @@ export default function parseArgs(args: string[]): PageOptions {
 					// nodes[currentName] = currentNode;
 					doneAnything = true;
 					break;
-				case '-x':
+				case '-T':
 				case '--text':
-					if (currentNode.value) throw new Error("Duplicate text");
-					currentNode.value = { type: 'text' };
+					currentNode.values.push({ type: 'text' });
 					doneAnything = true;
 					break;
 				case '-t':
 				case '--tag':
-					if (currentNode.value) throw new Error("Duplicate tag");
-					currentNode.value = { type: 'tag' };
+					currentNode.values.push({ type: 'tag' });
 					doneAnything = true;
 					break;
 				case '-a':
 				case '--attr':
 				case '--attribute':
-					if (currentNode.value) throw new Error("Duplicate attribute");
-					currentNode.value = { type: 'attr', attr: args.shift()! };
-					if (!currentNode.value!.attr) throw new Error("No attribute");
+					const attr = args.shift();
+					if (!attr) throw new Error("No attribute");
+					currentNode.values.push({ type: 'attr', attr });
 					doneAnything = true;
 					break;
 				case '-p':
-				case '--parent':
+				case '--parent': {
 					if (currentParent) throw new Error("Duplicate parent");
+					if (currentFollow) throw new Error("Follow and parent");
 					// currentParent = nodes[args.shift()];
 					const id = args.shift()!;
 					if (!id) throw new Error("No parent");
 					currentParent = getNode(id!);
 					doneAnything = true;
 					break;
+				}
+				case '-f':
+				case '--follow': {
+					if (currentFollow) throw new Error("Duplicate follow");
+					if (currentParent) throw new Error("Parent and follow");
+					// currentFollow = nodes[args.shift()];
+					const id = args.shift()!;
+					if (!id) throw new Error("No follow");
+					currentFollow = getNode(id!) as SubPage;
+					doneAnything = true;
+					break;
+				}
 				case '--':
 				case '--next':
 					if (!doneAnything) throw new Error("Redundant next");
 					saveCurrentNode();
-					currentNode = {};
+					currentNode = { values: [] };
 					currentParent = null;
+					currentFollow = null;
 					currentName = null;
 					doneAnything = false;
 					break;
@@ -109,9 +135,28 @@ export default function parseArgs(args: string[]): PageOptions {
 			}
 			if (!args.length && doneAnything) saveCurrentNode();
 		}
+		function *allNodes(node?: SubPage): Generator<SubPage> {
+			if (!node) {
+				for (const id in root.children) yield *allNodes(root.children[id]);
+				return;
+			}
+			yield node;
+			if (node.children) for (const id in node.children)
+				yield *allNodes(node.children[id]);
+			if (node.follow) for (const id in node.follow)
+				yield *allNodes(node.follow[id]);
+		}
+		for (const node of allNodes()) {
+			if (empty(node.children) && empty(node.follow) && !node.values.length)
+				node.values.push({ type: "text" });
+		}
 		return root;
 	} catch (e) {
 		dieWithUsage(e as Error);
 		throw e;
 	}
+}
+
+function empty(val: Object | undefined | null) {
+	return !val || Object.values(val).length === 0;
 }

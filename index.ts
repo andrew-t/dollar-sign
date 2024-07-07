@@ -1,78 +1,103 @@
 #!/usr/bin/env node
 
-import $, { Element } from 'cheerio';
+import $, { AnyNode, Cheerio, Element } from 'cheerio';
 import parseArgs from "./args";
-import { Result, PageOptions, SubPage, ElementValue } from "./types";
+import { MatchingPage, ElementValue, MatchChildren, PageChildren } from "./types";
 
 const options = parseArgs(process.argv.slice(2));
 
-// console.log(JSON.stringify(options, null, 2));
+if (options.verbose || options.dryRun) console.error(JSON.stringify(options, null, 2));
 
-class Page {
-	html: string | null;
-	url: string | null;
-	children: { [id: string]: SubPage };
+if (!options.dryRun) getStartPage(options.url)
+	.then(html => getChildren(options.children, html, options.url))
+	.then(json => console.log(options.pretty
+		? JSON.stringify(json, null, 2)
+		: JSON.stringify(json)))
+	.catch(console.error);
 
-	constructor({ html, url, children }: PageOptions) {
-		this.html = html ?? null;
-		this.url = url ?? null;
-		this.children = children;
-	}
-	
-	async getHtml(): Promise<string> {
-		if (this.html) return this.html;
-		if (this.url == "stdio") return await new Promise((resolve, reject) => {
-			let buffers: Buffer[] = [];
-			process.stdin.on('data', b => buffers.push(b));
-			process.stdin.on('error', reject);
-			process.stdin.on('end', () => resolve(Buffer.concat(buffers).toString()));
-		});
-		if (!this.url) throw new Error("Page has no URL");
-		console.log("Fetching URL", this.url);
-		const res = await fetch(this.url);
-		return await res.text();
-	}
-
-	async fetch(): Promise<Result> {
-		const html = $(await this.getHtml());
-		const output: Result = { url: this.url, values: {} };
-		for (const id in this.children) {
-			const { selector, value: valuePosition, follow } = this.children[id];
-			const values: Array<Result | string | null> = [];
-			output.values[id] = values;
-			for (const el of html.find(selector).toArray()) {
-				const value = getText(el, valuePosition);
-				if (!value) values.push(null);
-				else if (!follow) values.push(value);
-				else values.push(await new Page({
-					url: this.relativeUrl(value),
-					children: follow
-				}).fetch());
-			}
-		}
-		return output;
-	}
-
-	relativeUrl(url: string): string {
-		url = url.replace(/#.*$/, '');
-		if (!url) throw new Error("#urls not supported");
-		if (url.includes('://')) return url;
-		if (!this.url) throw new Error("Parent must have URL");
-		const p = new URL(this.url);
-		if (url.startsWith('//')) return p.protocol + url;
-		if (url.startsWith('/')) return p.origin + url;
-		return p.origin + p.pathname.replace(/\/[^/]*$/, '/') + url;
-	}
-}
 
 function getText(el: Element, step: ElementValue): string {
 	switch (step.type) {
 		case undefined: case 'text': return $(el).text();
 		case 'attr': return $(el).attr(step.attr) ?? "";
 		case 'tag': return el.tagName;
+		case 'html': return $(el).html() ?? "";
 	}
 }
 
-new Page(options).fetch()
-	.then(json => console.log(JSON.stringify(json, null, 2)))
-	.catch(console.error);
+async function getStartPage(url: string | null) {
+	if (url) return await getPage(url);
+	const html = await new Promise<string>((resolve, reject) => {
+		let buffers: Buffer[] = [];
+		process.stdin.on('data', b => buffers.push(b));
+		process.stdin.on('error', reject);
+		process.stdin.on('end', () => resolve(Buffer.concat(buffers).toString()));
+	});
+	return $(html);
+}
+
+async function asyncMapObj<In, Out>(
+	obj: Record<string, In>,
+	callback: (val: In, id: string) => Out | Promise<Out>
+): Promise<Record<string, Out>> {
+	const output: Record<string, Out> = {};
+	for (const id in obj) output[id] = await callback(obj[id], id);
+	return output;
+}
+
+async function asyncMap<In, Out>(arr: In[], callback: (val: In, i: number) => Out | Promise<Out>) {
+	const output: Out[] = [];
+	for (let i = 0; i < arr.length; ++i) output[i] = await callback(arr[i], i);
+	return output;
+}
+
+async function getChildren(children: PageChildren, html: Cheerio<AnyNode>, url: string | null): Promise<MatchChildren> {
+	if (options.verbose) console.error(children);
+	return await asyncMapObj(children,
+		({ selector, values, children: grandChildren, follow }) =>
+			asyncMap(html.find(selector).toArray(), 
+				async el => ({
+				values: values.map(val => getText(el, val)),
+				children: grandChildren
+					? await getChildren(grandChildren, $(el), url)
+					: null,
+				follow: follow
+					? await getFollow(follow, $(el).attr("href"), url)
+					: null,
+			})));
+}
+
+async function getFollow(
+	follow: PageChildren,
+	relPath: string | undefined,
+	baseUrl: string | null
+): Promise<MatchingPage | null> {
+	if (!relPath) return null;
+	const url = relativeUrl(relPath, baseUrl);
+	return {
+		url,
+		children: await getChildren(follow, await getPage(url), url)
+	};
+}
+
+function relativeUrl(url: string, baseUrl: string | null): string {
+	url = url.replace(/#.*$/, '');
+	if (!url) throw new Error("#urls not supported");
+	if (url.includes('://')) return url;
+	if (!baseUrl) throw new Error("Relative path with no base URL");
+	const p = new URL(baseUrl);
+	if (url.startsWith('//')) return p.protocol + url;
+	if (url.startsWith('/')) return p.origin + url;
+	return p.origin + p.pathname.replace(/\/[^/]*$/, '/') + url;
+}
+
+async function getPage(url: string) {
+	if (options.verbose) console.error("Fetching URL", url);
+	try {
+		const res = await fetch(url);
+		return $(await res.text());
+	} catch(e) {
+		console.error("Error while fetching", url);
+		throw e;
+	}
+}
